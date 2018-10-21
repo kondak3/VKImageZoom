@@ -20,7 +20,6 @@ imgZoom.image = [UIImage imageNamed:@"you image name"];
 [self presentViewController:imgZoom animated:YES completion:nil];
 ```
 
-
 ```
 // if you have image url use this below one...
 VKImageZoom *imgZoom = [[VKImageZoom alloc] initWithNibName:nil bundle:nil];
