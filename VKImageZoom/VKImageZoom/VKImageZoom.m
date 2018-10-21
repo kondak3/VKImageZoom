@@ -18,6 +18,10 @@
     UIScrollView *img_scroll;
     // imageview for image...
     UIImageView *zoom_imgView;
+    // dismiss button...
+    UIButton *cancel_btn;
+    // indicator...
+    UIActivityIndicatorView *act_indicator;
 }
 @end
 
@@ -32,6 +36,14 @@
     // add components...
     self.view.backgroundColor = [UIColor blackColor];
     [self addView_components];
+    [[NSNotificationCenter defaultCenter] addObserver: self
+                                             selector: @selector(deviceOrientationDidChange:)
+                                                 name: UIDeviceOrientationDidChangeNotification
+                                               object: nil];
+}
+
+- (void)deviceOrientationDidChange:(NSNotification *)notification {
+    [self addView_components];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -44,11 +56,14 @@
     
     img_width = self.view.frame.size.width;
     img_height = self.view.frame.size.height;
-    
+    float status_height = [UIApplication sharedApplication].statusBarFrame.size.height;
     
     // create scroll view...
+    if (img_scroll != nil) {
+        [img_scroll removeFromSuperview];
+    }
     img_scroll = [[UIScrollView alloc]init];
-    img_scroll.frame = CGRectMake(0, 20, img_width, img_height-40);
+    img_scroll.frame = CGRectMake(0, status_height, img_width, img_height-(2*status_height));
     img_scroll.backgroundColor = [UIColor clearColor];
     img_scroll.bouncesZoom = YES;
     img_scroll.delegate = self;
@@ -62,13 +77,16 @@
     zoom_imgView = [[UIImageView alloc] init];
     zoom_imgView.userInteractionEnabled = YES;
     zoom_imgView.backgroundColor = [UIColor clearColor];
-    zoom_imgView.frame = CGRectMake(0, 20, img_width, img_height-40);
+    zoom_imgView.frame = CGRectMake(0, status_height, img_width, img_height-(2*status_height));
     zoom_imgView.center = img_scroll.center;
     [img_scroll addSubview:zoom_imgView];
     
     // create cancel button...
-    UIButton *cancel_btn = [UIButton buttonWithType:UIButtonTypeCustom];
-    cancel_btn.frame = CGRectMake(img_width-36, 26, 30, 30);
+    if (cancel_btn != nil) {
+        [cancel_btn removeFromSuperview];
+    }
+    cancel_btn = [UIButton buttonWithType:UIButtonTypeCustom];
+    cancel_btn.frame = CGRectMake((img_width-36), (status_height+6), 30, 30);
     cancel_btn.backgroundColor = [UIColor clearColor];
     [cancel_btn setTitle:@"X" forState:UIControlStateNormal];
     cancel_btn.titleLabel.font = [UIFont systemFontOfSize:15.0];
@@ -80,6 +98,16 @@
     cancel_btn.layer.cornerRadius = 30/2;
     cancel_btn.layer.borderWidth = 2.0f;
     cancel_btn.layer.borderColor = [UIColor whiteColor].CGColor;
+    
+    // create indicator...
+    if (act_indicator != nil) {
+        [act_indicator removeFromSuperview];
+    }
+    act_indicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
+    act_indicator.center = self.view.center;
+    [act_indicator stopAnimating];
+    [self.view addSubview:act_indicator];
+    
     
     // loading images...
     [self loadingImages];
@@ -100,19 +128,19 @@
 
 - (void)handleDoubleTap:(UIGestureRecognizer *)gestureRecognizer {
     
-    UIImageView *loImgView = (UIImageView*)gestureRecognizer.view;
-    UIScrollView *loZoomView = (UIScrollView*)[loImgView superview];
+    UIImageView *loImgView = (UIImageView *)gestureRecognizer.view;
+    UIScrollView *loZoomView = (UIScrollView *)[loImgView superview];
     
     // zoom in
     float newScale = [loZoomView zoomScale] * ZOOM_STEP;
-    if (newScale > loZoomView.maximumZoomScale)
-    {
+    if (newScale > loZoomView.maximumZoomScale) {
+        
         newScale = loZoomView.minimumZoomScale;
         CGRect zoomRect = [self zoomRectForScale:newScale withCenter:[gestureRecognizer locationInView:gestureRecognizer.view] sendImgView:loImgView];
         [loZoomView zoomToRect:zoomRect animated:YES];
     }
-    else
-    {
+    else {
+        
         newScale = loZoomView.maximumZoomScale;
         CGRect zoomRect = [self zoomRectForScale:newScale withCenter:[gestureRecognizer locationInView:gestureRecognizer.view] sendImgView:loImgView];
         [loZoomView zoomToRect:zoomRect animated:YES];
@@ -121,7 +149,7 @@
 
 
 #pragma mark -
-- (CGRect)zoomRectForScale:(float)scale withCenter:(CGPoint)center  sendImgView:(UIImageView*)loZoomView {
+- (CGRect)zoomRectForScale:(float)scale withCenter:(CGPoint)center sendImgView:(UIImageView*)loZoomView {
     
     CGRect zoomRect = CGRectZero;
     // the zoom rect is in the content view's coordinates.
@@ -151,11 +179,7 @@
     }
     else if (self.image_url != nil) { // image loading with url...
         
-        // create indicator...
-        UIActivityIndicatorView *indicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhite];
-        indicator.center = self.view.center;
-        [indicator startAnimating];
-        [self.view addSubview:indicator];
+        [act_indicator startAnimating];
         
         // downloading images...
         NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
@@ -165,7 +189,7 @@
                                                         
                                                         dispatch_async(dispatch_get_main_queue(), ^{
                                                             
-                                                            [indicator stopAnimating];
+                                                            [self->act_indicator stopAnimating];
                                                             // error...
                                                             if (error != nil) {
                                                                 NSLog(@"%@", error);
@@ -221,10 +245,10 @@
     
     CGFloat offset_X = (scrollView.bounds.size.width > scrollView.contentSize.width)? (scrollView.bounds.size.width - scrollView.contentSize.width) * 0.5 : 0.0;
     CGFloat offset_Y = (scrollView.bounds.size.height > scrollView.contentSize.height)? (scrollView.bounds.size.height - scrollView.contentSize.height) * 0.5 : 0.0;
-    for (int i=0; i<[scrollView subviews].count; i++)
-    {
-        if ([[[scrollView subviews] objectAtIndex:i] isKindOfClass:[UIImageView class]])
-        {
+    
+    for (int i=0; i<[scrollView subviews].count; i++) {
+        if ([[[scrollView subviews] objectAtIndex:i] isKindOfClass:[UIImageView class]]) {
+            
             UIImageView *loimage = (UIImageView*)[[scrollView subviews] objectAtIndex:i];
             loimage.center = CGPointMake(scrollView.contentSize.width * 0.5 + offset_X, scrollView.contentSize.height * 0.5 + offset_Y);
         }
@@ -245,34 +269,6 @@
 }
 
 @end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
